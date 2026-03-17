@@ -1,6 +1,10 @@
 %% tsdr_core.m
 % Core TempestSDR signal-processing functions converted from Java (Main.java).
 %
+% NOTE: This file covers the Java GUI layer (Main.java).
+%       For the full C-library DSP pipeline (dsp.c, fft.c,
+%       frameratedetector.c, syncdetector.c) see tsdr_dsp.m.
+%
 % Covers:
 %   detect_sync()       – autocorrelation-based fps / height detection
 %   fps_from_index()    – sample-index  →  fps   (FPSTransformer.fromIndex)
