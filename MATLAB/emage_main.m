@@ -51,41 +51,26 @@ end
 %% ════════════════════════════════════════════════════════════════════════════
 
 function run_capture(base)
-fprintf('\n══ Phase 1: Capture ══\n');
+fprintf('\n══ Phase 1: Capture (simulation demo) ══\n');
 
-%% ── 입력 소스 선택 ───────────────────────────────────────────────────────────
-src = input('[capture] 입력 소스 선택 (1=시뮬레이션, 2=.ris 파일): ');
+%% Parameters (defaults from Main.java)
+fs       = 2.4e6;    % SDR sample rate  [Hz]
+fps_true = 25;       % display frame rate
+H_true   = 625;      % display height   [lines]
+gain     = 0.8;
+mblur    = 0.6;
+out_w    = 576;
 
-gain  = 0.8;
-mblur = 0.6;
-out_w = 576;
+%% Simulate one frame of EM signal
+%  x[n] = periodic sync pulse train + noise
+N_frame = round(fs / fps_true);
+N_line  = round(N_frame / H_true);
+n       = 0:N_frame*4-1;
 
-if src == 2
-    %% ── 실제 .ris 파일 읽기 (NI USRP2940R + LabVIEW) ────────────────────────
-    ris_path = input('[capture] .ris 파일 경로: ', 's');
-    fs_in    = input('[capture] Sample rate (Hz) [예: 2.4e6]: ');
-    fc_in    = input('[capture] Carrier frequency (Hz) [예: 400e6]: ');
-
-    [iq_signal, fs, ~] = read_ris(ris_path, fs_in, fc_in);
-
-    % 포락선(magnitude) → 실수 신호로 변환
-    x = abs(iq_signal);
-
-else
-    %% ── 시뮬레이션 신호 생성 ─────────────────────────────────────────────────
-    fprintf('[capture] 시뮬레이션 신호를 사용합니다.\n');
-    fs       = 2.4e6;
-    fps_true = 25;
-    H_true   = 625;
-
-    N_frame = round(fs / fps_true);
-    N_line  = round(N_frame / H_true);
-    n       = 0:N_frame*4-1;
-
-    x = zeros(size(n));
-    x(mod(n, N_line) == 0) = 1;
-    x = x + 0.1 * randn(size(x));
-end
+% Impulse at every line start (simulates horizontal sync)
+x = zeros(size(n));
+x(mod(n, N_line) == 0) = 1;
+x = x + 0.1 * randn(size(x));
 
 %% Optional lowpass before sync detection
 x_lp = lowpass_ma(x, 5);
@@ -93,20 +78,14 @@ x_lp = lowpass_ma(x, 5);
 %% Detect synchronisation
 [fps_det, H_det, ok] = detect_sync(x_lp, fs);
 if ~ok
-    if src == 1
-        fprintf('[capture] Sync detection failed – using true values\n');
-        fps_det = fps_true;
-        H_det   = H_true;
-    else
-        fps_det = input('[capture] Sync 감지 실패. fps 직접 입력: ');
-        H_det   = input('[capture] Height(lines) 직접 입력: ');
-    end
+    fprintf('[capture] Sync detection failed – using true values\n');
+    fps_det = fps_true;
+    H_det   = H_true;
 end
 fprintf('[capture] Detected  fps=%.2f  height=%.1f\n', fps_det, H_det);
 
 %% Reconstruct one 2D frame
-N_frame   = round(fs / fps_det);
-one_frame = x(1:min(N_frame, numel(x)));
+one_frame = x(1:N_frame);
 img_raw   = reconstruct_frame(one_frame, fps_det, H_det, fs);
 
 %% Process: gain + motion blur (first frame → no prev)
